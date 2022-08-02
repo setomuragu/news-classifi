@@ -1,0 +1,144 @@
+import numpy as np
+import pandas as pd
+from pandas import Series
+import seaborn as sns
+import re
+import nltk
+from nltk.corpus import stopwords
+nltk.download('stopwords')
+from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
+nltk.download('wordnet')
+from nltk.tokenize import word_tokenize
+from nltk.tokenize import sent_tokenize
+nltk.download('punkt')
+from wordcloud import WordCloud
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import make_scorer, roc_curve, roc_auc_score
+from sklearn.metrics import precision_recall_fscore_support as score
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB,MultinomialNB,BernoulliNB
+train_set = pd.read_csv('E:/dacon_data/news_classifi/train.csv')
+test_set = pd.read_csv('E:/dacon_data/news_classifi/test.csv')
+submission = pd.read_csv('E:/dacon_data/news_classifi/sample_submission.csv')
+
+import sklearn
+from sklearn import *
+from sklearn.metrics import classification_report
+from nltk.tokenize import word_tokenize
+from nltk.tokenize import WordPunctTokenizer
+from tensorflow.keras.preprocessing.text import text_to_word_sequence
+from nltk.tokenize import TreebankWordTokenizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+from sklearn.feature_extraction.text import CountVectorizer
+import string
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords  
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+STOP_WORDS = stopwords.words('english')
+print("stop words", STOP_WORDS)
+
+def remove_stop_words(s):
+  return " ".join([x for x in word_tokenize(s)])
+
+def preprocess_data(df_train, df_test, 
+                    no_number=False,
+                    no_stopwords=False,
+                    no_punctuation=False,
+                    min_len=0,
+                    lowercase=False):
+  train_set, test_set = train_set.copy(), test_set.copy()
+
+  for df in [train_set, test_set]:
+    # 띄어쓰기나 공백이 연속된 경우 공백 하나로 바꿈
+    df.text = df.text.str.replace(r"\s+", " ", regex=True)
+
+    if lowercase: # 소문자로 변경
+      df.text = df.text.str.lower()
+    if no_number: # 숫자 제거
+      df.text = df.text.str.replace(r"\d+", "", regex=True)
+    if no_punctuation: # punctuation 제거
+      df.text = df.text.str.translate(str.maketrans('', '', string.punctuation))
+    if no_stopwords: # 불용어 제거
+      df.text = df.text.map(remove_stop_words)
+    
+    df["length"] = df.text.map(len)
+    
+    # 길이가 min_len 미만인 문자열은 학습 데이터에서 제거한다
+    if min_len > 0 and "target" in df.columns:
+      df.drop(df[df.length < min_len].index, inplace=True)
+
+  return train_set, test_set
+
+def tokenize_data(train_set, test_set, vocab_size, max_len):
+  tokenizer = Tokenizer(num_words=vocab_size, oov_token="<OOV>")
+  tokenizer.fit_on_texts(train_set.text)
+  for df in [train_set, test_set]:
+    df["encoded"] = pad_sequences(
+         tokenizer.texts_to_sequences(df.text),
+         maxlen=max_len,
+         padding="post"
+         ).tolist()
+
+x_train = np.array(train_set.iloc[:,1 : 2].values)
+y_train = np.array(train_set.iloc[:, -1].values)
+cv = CountVectorizer(max_features = 10000)
+x_train = cv.fit_transform(train_set.text).toarray()
+x_test = np.array(test_set.iloc[:, 1].values)
+x_test = cv.fit_transform(test_set.text).toarray()
+print("x_train.shape = ",x_train.shape)
+print("y_train.shape = ",y_train.shape)
+
+print('훈련용 뉴스 기사 : {}'.format(len(x_train)))
+print('테스트용 뉴스 기사 : {}'.format(len(x_test)))
+num_classes = len(set(y_train))
+print('카테고리 : {}'.format(num_classes))
+
+from sklearn.model_selection import train_test_split
+train_x,test_x, train_y, test_y = sklearn.model_selection.train_test_split(x_train, y_train, test_size=0.4, shuffle=True, random_state=0)
+
+dev_x, test_x, dev_y, test_y = sklearn.model_selection.train_test_split(test_x, test_y, test_size=0.5, shuffle=True, random_state=0)
+
+perform_list = []
+
+# learning rate와 alpha를 랜덤으로 하여 최적값을 찾는다.
+i = 0
+while i < 100:
+    r = -4 * np.random.rand()
+    t = -4 * np.random.rand()
+    model = sklearn.neural_network.MLPClassifier(
+    hidden_layer_sizes = (256, 128, 64, 8, 8),
+    activation = 'relu',
+    solver = 'adam',
+    learning_rate_init = 10 ** r,
+    max_iter = 512,
+    batch_size = 64,
+    alpha = 10 ** t,
+    warm_start = False,
+    random_state = 0)
+    model.fit(train_x, train_y)
+    y_pred = model.predict(dev_x)
+    score = accuracy_score(y_pred, dev_y)
+    print(r)
+    print(t)
+    print(score)
+    i = i + 1
+
+
+a = model.predict(x_test)
+submission.iloc[:, 1] = a
+submission.to_csv('E:/dacon_data/news_classifi/sample_submission_06.csv',index=False)
